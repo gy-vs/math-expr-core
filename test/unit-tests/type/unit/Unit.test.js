@@ -1105,6 +1105,94 @@ describe('Unit', function () {
     })
   })
 
+  describe('fraction configuration', function () {
+    let fmath
+
+    before(function () {
+      fmath = math.create({ number: 'Fraction' })
+    })
+
+    it('should parse a value with a derived unit and keep a Fraction value', function () {
+      const u = fmath.evaluate('9.81 m/s^2')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toNumeric().toFraction(), '981/100')
+      assert.strictEqual(u.toString(), '981/100 m / s^2')
+    })
+
+    it('should raise a unit with a Fraction exponent to a power', function () {
+      const u = fmath.evaluate('(5 m)^2')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '25/1 m^2')
+      assert.strictEqual(u.value.valueOf(), 25)
+    })
+
+    it('should support Unit.pow with a Fraction exponent via the API', function () {
+      const u = fmath.pow(fmath.unit(fmath.fraction(5), 'm'), fmath.fraction(2))
+      assert(isFraction(u.value))
+      assert.strictEqual(u.toString(), '25/1 m^2')
+    })
+
+    it('should calculate the square root of a Fraction valued unit', function () {
+      const u = fmath.evaluate('sqrt(16 m^2)')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '4/1 m')
+    })
+
+    it('should calculate the cubic root of a Fraction valued unit', function () {
+      const u = fmath.evaluate('cbrt(27 m^3)')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '3/1 m')
+    })
+
+    it('should multiply Fraction valued units and convert derived units', function () {
+      const u = fmath.evaluate('1.5 kg * 9.81 m/s^2 to N')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '2943/200 N')
+      assert(Math.abs(u.value.valueOf() - 14.715) < 1e-12)
+    })
+
+    it('should multiply units with decimal conversion factors to a power', function () {
+      const u = fmath.evaluate('2 inch * 3 inch to cm^2')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert(Math.abs(u.toNumeric().valueOf() - 38.7096) < 1e-12)
+    })
+
+    it('should convert a unit with a non-terminating decimal definition to an exact Fraction', function () {
+      const u = fmath.evaluate('1 lb to kg')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toNumeric().toFraction(), '45359237/100000000')
+      assert.strictEqual(u.value.valueOf(), 0.45359237)
+    })
+
+    it('should multiply a Fraction with a unit having a decimal conversion factor', function () {
+      const u = fmath.multiply(fmath.fraction(3), fmath.unit('lb'))
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert(Math.abs(u.value.valueOf() - 3 * 0.45359237) < 1e-12)
+    })
+
+    it('should support fractional exponents on units', function () {
+      assert.strictEqual(fmath.evaluate('(16 m^4)^(1/4)').toString(), '2/1 m')
+      assert.strictEqual(fmath.evaluate('(4 m^2)^(-1/2)').toString(), '1/2 m^-1')
+      assert.strictEqual(fmath.evaluate('(9 m^2)^(3/2)').toString(), '27/1 m^3')
+    })
+
+    it('should fall back to a number for an irrational root of a Fraction valued unit', function () {
+      const u = fmath.evaluate('(2 m)^(1/2)')
+      assert.strictEqual(u.valueType(), 'number')
+      assert(Math.abs(u.value.valueOf() - Math.sqrt(2)) < 1e-12)
+    })
+
+    it('should convert between prefixed units with powers', function () {
+      assert.strictEqual(fmath.evaluate('1 m^2 to cm^2').toString(), '10000/1 cm^2')
+      assert.strictEqual(fmath.evaluate('1 km^2 to m^2').toString(), '1000000/1 m^2')
+    })
+
+    it('should convert offset units with Fraction values', function () {
+      assert.strictEqual(fmath.evaluate('32 degF to degC').toString(), '0/1 degC')
+      assert.strictEqual(fmath.evaluate('100 degC to K').toString(), '7463/20 K')
+    })
+  })
+
   describe('plurals', function () {
     it('should support plurals', function () {
       const unit1 = new Unit(5, 'meters')

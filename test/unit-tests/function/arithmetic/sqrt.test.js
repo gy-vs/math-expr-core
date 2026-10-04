@@ -100,4 +100,40 @@ describe('sqrt', function () {
     const expression = math.parse('sqrt(2)')
     assert.strictEqual(expression.toTex(), '\\sqrt{2}')
   })
+
+  describe('fraction', function () {
+    let fmath
+
+    before(function () {
+      fmath = math.create({ number: 'Fraction' })
+    })
+
+    it('should return the square root of a perfect square Fraction', function () {
+      assert.deepStrictEqual(fmath.sqrt(fmath.fraction(16)), fmath.fraction(4))
+      assert.deepStrictEqual(fmath.sqrt(fmath.fraction(9, 16)), fmath.fraction(3, 4))
+    })
+
+    it('should return a number for the square root of a non-square Fraction', function () {
+      assert.strictEqual(typeof fmath.sqrt(fmath.fraction(2)), 'number')
+      assert(Math.abs(fmath.sqrt(fmath.fraction(2)) - Math.sqrt(2)) < 1e-12)
+    })
+
+    it('should throw for an irrational square root when predictable is enabled', function () {
+      const predictableMath = math.create({ number: 'Fraction', predictable: true })
+      assert.throws(function () { predictableMath.sqrt(predictableMath.fraction(2)) },
+        /non-rational and cannot be expressed as a fraction/)
+    })
+
+    it('should calculate the square root of a Fraction valued unit', function () {
+      const u = fmath.evaluate('sqrt(16 m^2)')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '4/1 m')
+    })
+
+    it('should return a number value for an irrational square root of a unit', function () {
+      const u = fmath.evaluate('sqrt(2 m^2)')
+      assert.strictEqual(u.valueType(), 'number')
+      assert(Math.abs(u.value.valueOf() - Math.sqrt(2)) < 1e-12)
+    })
+  })
 })

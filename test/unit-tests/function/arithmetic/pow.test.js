@@ -233,6 +233,33 @@ describe('pow', function () {
     assert.strictEqual(pow(unit('kg^0.5 m^0.5 s^-1'), 2).toString(), '(kg m) / s^2')
   })
 
+  describe('fraction configuration', function () {
+    let fmath
+
+    before(function () {
+      fmath = math.create({ number: 'Fraction' })
+    })
+
+    it('should raise a Fraction valued unit to a Fraction power', function () {
+      const u = fmath.pow(fmath.unit(fmath.fraction(5), 'm'), fmath.fraction(2))
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '25/1 m^2')
+    })
+
+    it('should evaluate a unit raised to a Fraction exponent', function () {
+      const u = fmath.evaluate('(5 m)^2')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '25/1 m^2')
+    })
+
+    it('should keep units as numbers when raising to a fractional Fraction power', function () {
+      const u = fmath.evaluate('(16 m^4)^(1/4)')
+      assert.strictEqual(u.valueType(), 'Fraction')
+      assert.strictEqual(u.toString(), '2/1 m')
+      assert.strictEqual(u.units[0].power, 1)
+    })
+  })
+
   it('should throw an error when doing number ^ unit', function () {
     assert.throws(function () { pow(2, unit('5cm')) })
   })

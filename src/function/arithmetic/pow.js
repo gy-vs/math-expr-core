@@ -100,6 +100,10 @@ export const createPow = /* #__PURE__ */ factory(name, dependencies, ({ typed, c
 
     'Unit, number | BigNumber': function (x, y) {
       return x.pow(y)
+    },
+
+    'Unit, Fraction': function (x, y) {
+      return x.pow(y)
     }
 
   })

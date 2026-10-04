@@ -492,12 +492,28 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
    * @return {number | BigNumber | Fraction | boolean} normalized value
    * @private
    */
-  Unit.prototype._normalize = function (value) {
+  Unit.prototype._normalize = function (value, targetType) {
     if (value === null || value === undefined || this.units.length === 0) {
       return value
     }
     let res = value
-    const convert = Unit._getNumberConverter(typeOf(value)) // convert to Fraction or BigNumber if needed
+    // Normalize in the numeric type of the provided value, of an explicitly
+    // requested type (for example the type of the other operand when
+    // multiplying units), of this unit's own value (when re-normalizing a
+    // unit without a provided value), or of the configured default numeric
+    // type. This ensures that a Fraction value is normalized using
+    // Fractions even when the built-in unit constants are plain numbers
+    // (for example 0.45359237 for a pound).
+    const valueType = typeOf(value)
+    const type = targetType ||
+      (Unit.typeConverters[valueType]
+        ? valueType
+        : (this.value !== null && this.value !== undefined
+            ? typeOf(this.value)
+            : (config.number === 'BigNumber'
+                ? 'BigNumber'
+                : config.number === 'Fraction' ? 'Fraction' : 'number')))
+    const convert = Unit._getNumberConverter(type) // convert to Fraction or BigNumber if needed
 
     for (let i = 0; i < this.units.length; i++) {
       const unitValue = convert(this.units[i].unit.value)
@@ -657,8 +673,12 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
 
     // If at least one operand has a value, then the result should also have a value
     if (this.value !== null || other.value !== null) {
-      const valThis = this.value === null ? this._normalize(1) : this.value
-      const valOther = other.value === null ? other._normalize(1) : other.value
+      const valThis = this.value === null
+        ? this._normalize(1, typeOf(other.value))
+        : this.value
+      const valOther = other.value === null
+        ? other._normalize(1, typeOf(this.value))
+        : other.value
       res.value = multiplyScalar(valThis, valOther)
     } else {
       res.value = null
@@ -709,8 +729,12 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
 
     // If at least one operand has a value, the result should have a value
     if (this.value !== null || other.value !== null) {
-      const valThis = this.value === null ? this._normalize(1) : this.value
-      const valOther = other.value === null ? other._normalize(1) : other.value
+      const valThis = this.value === null
+        ? this._normalize(1, typeOf(other.value))
+        : this.value
+      const valOther = other.value === null
+        ? other._normalize(1, typeOf(this.value))
+        : other.value
       res.value = divideScalar(valThis, valOther)
     } else {
       res.value = null
@@ -732,14 +756,20 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
   Unit.prototype.pow = function (p) {
     const res = this.clone()
 
+    // Dimensions and unit powers are bookkeeping numbers and must stay
+    // plain numbers even when the exponent is a Fraction or BigNumber
+    const numericP = typeOf(p) === 'number'
+      ? p
+      : toNumber(p)
+
     for (let i = 0; i < BASE_DIMENSIONS.length; i++) {
       // Dimensions arrays may be of different lengths. Default to 0.
-      res.dimensions[i] = (this.dimensions[i] || 0) * p
+      res.dimensions[i] = (this.dimensions[i] || 0) * numericP
     }
 
     // Adjust the power of each unit in the list
     for (let i = 0; i < res.units.length; i++) {
-      res.units[i].power *= p
+      res.units[i].power *= numericP
     }
 
     if (res.value !== null) {
@@ -2956,7 +2986,13 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
     },
 
     Fraction: function (x) {
-      return new Fraction(x)
+      if (x?.isFraction) return x
+      if (typeof x !== 'number') return new Fraction(x)
+      // Built-in units are defined with plain decimal constants like
+      // 0.45359237 (lb) or 0.0254 (inch). Convert such a constant to the
+      // exact decimal fraction instead of the heuristic rational
+      // approximation produced by `new Fraction(number)`.
+      return numberToFraction(x, Fraction)
     },
 
     Complex: function (x) {
@@ -2966,6 +3002,45 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
     number: function (x) {
       if (x?.isFraction) return number(x)
       return x
+    }
+  }
+
+  /**
+   * Convert a number into a Fraction holding its exact decimal value.
+   * In contrast with `new Fraction(number)`, which returns a heuristic
+   * rational approximation, this preserves decimal constants used in the
+   * unit definitions (for example 0.45359237 for a pound).
+   *
+   * @param {number} x
+   * @param {Function} Fraction  The Fraction constructor
+   * @returns {Object} Fraction
+   * @private
+   */
+  function numberToFraction (x, Fraction) {
+    let decimal = String(x)
+    const match = decimal.match(/^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/)
+    if (match) {
+      const sign = match[1]
+      let digits = match[2] + (match[3] || '')
+      let point = match[2].length + (match[4] !== undefined ? parseInt(match[4], 10) : 0)
+
+      if (point <= 0) {
+        digits = '0'.repeat(1 - point) + digits
+        point = 0
+      } else if (point > digits.length) {
+        digits += '0'.repeat(point - digits.length)
+      }
+
+      decimal = sign + (point === 0 ? '0' : digits.slice(0, point)) +
+        (point < digits.length ? '.' + digits.slice(point) : '')
+    }
+
+    try {
+      return new Fraction(decimal)
+    } catch (err) {
+      // values like 1e-400 underflow to 0 and other extreme values may
+      // not fit into a Fraction; fall back to a rational approximation
+      return new Fraction(x)
     }
   }
 

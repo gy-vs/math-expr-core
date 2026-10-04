@@ -98,7 +98,7 @@ export const createPow = /* #__PURE__ */ factory(name, dependencies, ({ typed, c
       return _powMatrix(x, y.toNumber())
     },
 
-    'Unit, number | BigNumber': function (x, y) {
+    'Unit, number | Fraction | BigNumber': function (x, y) {
       return x.pow(y)
     }
 

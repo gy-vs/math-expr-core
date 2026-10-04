@@ -1105,6 +1105,94 @@ describe('Unit', function () {
     })
   })
 
+  describe('Fraction configuration', function () {
+    let mathFraction
+
+    before(function () {
+      mathFraction = math.create({ number: 'Fraction' })
+    })
+
+    it('should keep the value a Fraction when parsing and converting units with powers', function () {
+      const acceleration = mathFraction.evaluate('9.81 m/s^2')
+      assert(isFraction(acceleration.value))
+      assert.strictEqual(acceleration.toString(), '981/100 m / s^2')
+      assert.strictEqual(acceleration.units[0].power, 1)
+      assert.strictEqual(acceleration.units[1].power, -2)
+
+      const squared = mathFraction.evaluate('(5 m)^2')
+      assert(isFraction(squared.value))
+      assert.strictEqual(squared.toString(), '25/1 m^2')
+
+      const root = mathFraction.evaluate('sqrt(16 m^2)')
+      assert(isFraction(root.value))
+      assert.strictEqual(root.toString(), '4/1 m')
+
+      const force = mathFraction.evaluate('1.5 kg * 9.81 m/s^2 to N')
+      assert(isFraction(force.value))
+      assert.strictEqual(force.value.valueOf(), 14.715)
+      assert.strictEqual(force.toString(), '2943/200 N')
+
+      const area = mathFraction.evaluate('2 inch * 3 inch to cm^2')
+      assert(isFraction(area.value))
+      assert(Math.abs(area.toNumeric().valueOf() - 38.7096) < 1e-12)
+    })
+
+    it('should represent decimal unit constants exactly as a Fraction', function () {
+      // pound is defined through the decimal constant 0.45359237
+      const pound = mathFraction.evaluate('1 lb to kg')
+      assert(isFraction(pound.value))
+      assert.strictEqual(pound.value.n, 45359237n)
+      assert.strictEqual(pound.value.d, 100000000n)
+      assert.strictEqual(pound.value.valueOf(), 0.45359237)
+
+      assert.strictEqual(mathFraction.evaluate('1 inch to cm').toNumeric().valueOf(), 2.54)
+      assert.strictEqual(mathFraction.evaluate('60 mile/hour to km/hour').toNumeric().valueOf(), 96.56064)
+    })
+
+    it('should multiply and divide Fractions with valueless units', function () {
+      const multiplied = mathFraction.multiply(mathFraction.fraction(3), mathFraction.unit('lb'))
+      assert(isFraction(multiplied.value))
+      assert.strictEqual(multiplied.toString(), '3/1 lb')
+
+      const divided = mathFraction.divide(mathFraction.fraction(6), mathFraction.unit('s'))
+      assert(isFraction(divided.value))
+      assert.strictEqual(divided.value.valueOf(), 6)
+
+      const unitTimesFraction = mathFraction.multiply(mathFraction.unit('m'), mathFraction.fraction(3))
+      assert(isFraction(unitTimesFraction.value))
+      assert.strictEqual(unitTimesFraction.toString(), '3/1 m')
+    })
+
+    it('should raise a unit with a Fraction exponent', function () {
+      const result = mathFraction.pow(
+        mathFraction.unit(mathFraction.fraction(5), 'm'),
+        mathFraction.fraction(2)
+      )
+      assert(isFraction(result.value))
+      assert.strictEqual(result.toString(), '25/1 m^2')
+      assert.strictEqual(result.units[0].power, 2)
+
+      const half = mathFraction.evaluate('(16 m^2)^(1/2)')
+      assert(isFraction(half.value))
+      assert.strictEqual(half.units[0].power, 1)
+    })
+
+    it('should support offset units and roots with Fraction values', function () {
+      assert.strictEqual(mathFraction.evaluate('100 degC to degF').toString(), '212/1 degF')
+      assert.strictEqual(mathFraction.evaluate('0 degC to K').value.valueOf(), 273.15)
+
+      const cubeRoot = mathFraction.evaluate('cbrt(27 m^3)')
+      assert(isFraction(cubeRoot.value))
+      assert.strictEqual(cubeRoot.toString(), '3/1 m')
+    })
+
+    it('should return a Fraction value from Unit constructed with a Fraction', function () {
+      const unit = new mathFraction.Unit(mathFraction.fraction(2), 'm/s^2')
+      assert(isFraction(unit.value))
+      assert.strictEqual(unit.toString(), '2/1 m / s^2')
+    })
+  })
+
   describe('plurals', function () {
     it('should support plurals', function () {
       const unit1 = new Unit(5, 'meters')

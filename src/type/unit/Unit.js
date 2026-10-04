@@ -1,4 +1,4 @@
-import { isComplex, isUnit, typeOf } from '../../utils/is.js'
+import { isBigNumber, isComplex, isUnit, typeOf } from '../../utils/is.js'
 import { factory } from '../../utils/factory.js'
 import { memoize } from '../../utils/function.js'
 import { endsWith } from '../../utils/string.js'
@@ -657,8 +657,8 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
 
     // If at least one operand has a value, then the result should also have a value
     if (this.value !== null || other.value !== null) {
-      const valThis = this.value === null ? this._normalize(1) : this.value
-      const valOther = other.value === null ? other._normalize(1) : other.value
+      const valThis = this.value === null ? this._normalize(_identity(other.value)) : this.value
+      const valOther = other.value === null ? other._normalize(_identity(this.value)) : other.value
       res.value = multiplyScalar(valThis, valOther)
     } else {
       res.value = null
@@ -709,8 +709,8 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
 
     // If at least one operand has a value, the result should have a value
     if (this.value !== null || other.value !== null) {
-      const valThis = this.value === null ? this._normalize(1) : this.value
-      const valOther = other.value === null ? other._normalize(1) : other.value
+      const valThis = this.value === null ? this._normalize(_identity(other.value)) : this.value
+      const valOther = other.value === null ? other._normalize(_identity(this.value)) : other.value
       res.value = divideScalar(valThis, valOther)
     } else {
       res.value = null
@@ -732,14 +732,21 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
   Unit.prototype.pow = function (p) {
     const res = this.clone()
 
+    // The dimensions and the powers of the units in the units list must be
+    // plain numbers, so convert the exponent to a number when it is a
+    // Fraction or BigNumber.
+    const pNumber = typeOf(p) === 'number' ? p : number(p)
+
     for (let i = 0; i < BASE_DIMENSIONS.length; i++) {
       // Dimensions arrays may be of different lengths. Default to 0.
-      res.dimensions[i] = (this.dimensions[i] || 0) * p
+      res.dimensions[i] = (this.dimensions[i] || 0) * pNumber
     }
 
-    // Adjust the power of each unit in the list
+    // Adjust the power of each unit in the list. The unit entries are shallow
+    // copied in clone(), so assign a new value instead of mutating: the unit
+    // and prefix themselves are shared with the global unit definitions.
     for (let i = 0; i < res.units.length; i++) {
-      res.units[i].power *= p
+      res.units[i] = { ...res.units[i], power: res.units[i].power * pNumber }
     }
 
     if (res.value !== null) {
@@ -757,6 +764,26 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
     res.skipAutomaticSimplification = false
 
     return getNumericIfUnitless(res)
+  }
+
+  /**
+   * Return the multiplicative identity (1) in the same numeric type as the
+   * provided value. Used when multiplying or dividing with a valueless unit.
+   * @param {number | BigNumber | Fraction | Complex} value
+   * @returns {number | BigNumber | Fraction | Complex}
+   * @private
+   */
+  function _identity (value) {
+    if (value && value.isFraction) {
+      return new Fraction(1)
+    }
+    if (BigNumber && isBigNumber(value)) {
+      return new BigNumber(1)
+    }
+    if (isComplex(value)) {
+      return new Complex(1, 0)
+    }
+    return 1
   }
 
   /**
@@ -2956,6 +2983,19 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
     },
 
     Fraction: function (x) {
+      if (typeof x === 'number') {
+        // Construct the fraction from the decimal representation of the number
+        // (for example 0.45359237 => "0.45359237" => 45359237/100000000), so
+        // that decimal unit constants like the value of a pound are represented
+        // exactly instead of losing precision. Fall back to passing the number
+        // itself for values that cannot be parsed from a string (like numbers
+        // in exponential notation or Infinity).
+        try {
+          return new Fraction(String(x))
+        } catch (err) {
+          return new Fraction(x)
+        }
+      }
       return new Fraction(x)
     },
 

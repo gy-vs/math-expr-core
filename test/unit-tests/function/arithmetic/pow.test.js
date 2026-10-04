@@ -221,6 +221,18 @@ describe('pow', function () {
     assert.deepStrictEqual(pow(unit(math.bignumber(4), 'N'), math.bignumber(2)).toNumeric('N^2'), math.bignumber(16))
   })
 
+  it('should raise a Unit to a Fraction power when number is configured as Fraction', function () {
+    const mathFraction = math.create({ number: 'Fraction' })
+    const powFraction = mathFraction.pow
+    const unitFraction = mathFraction.unit
+
+    assert.strictEqual(powFraction(unitFraction(mathFraction.fraction(5), 'm'), mathFraction.fraction(2)).toString(), '25/1 m^2')
+    assert.strictEqual(mathFraction.evaluate('(5 m)^2').toString(), '25/1 m^2')
+    assert.strictEqual(mathFraction.evaluate('s^2').value, null)
+    assert.strictEqual(mathFraction.evaluate('9.81 m/s^2').toString(), '981/100 m / s^2')
+    assert.strictEqual(mathFraction.evaluate('(16 m^2)^(1/2)').toString(), '4/1 m')
+  })
+
   it('should return a cloned value and not affect the argument', function () {
     const unit1 = unit('2 m')
     const unit2 = pow(unit1, 2)
